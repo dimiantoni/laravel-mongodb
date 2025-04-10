@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace MongoDB\Laravel\Eloquent;
 
 use BackedEnum;
-use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
 use DateTimeZone;
@@ -128,7 +127,7 @@ trait DocumentModel
      *
      * @param  mixed $value
      */
-    protected function asDateTime($value): Carbon
+    protected function asDateTime($value): DateTimeInterface
     {
         // Convert UTCDateTime instances to Carbon.
         if ($value instanceof UTCDateTime) {
