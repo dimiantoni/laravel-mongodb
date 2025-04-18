@@ -24,9 +24,18 @@ In this guide, you can learn how to set up HTTP sessions by
 using {+odm-long+}. Sessions allow your application to store information
 about a user across multiple server requests. Your application stores this
 information in a specified location that it can access in future
-requests that the user makes. The session driver in {+odm-long+} uses
-the ``MongoDbSessionHandler`` class from the Symfony framework to store
-session information.
+requests that the user makes.
+
+.. note:: Session Handler Implementation
+
+   The v5.4 {+odm-long+} introduces the dedicated
+   ``MongoDbSessionHandler`` class that extends the Laravel
+   ``DatabaseSessionHandler`` class to store session information.
+   The ``mongodb`` session driver saves user IDs, IP addresses, and user
+   agents if present.
+
+   In v5.3 and earlier, the session driver uses the
+   ``MongoDbSessionHandler`` class from the Symfony framework.
 
 To learn more about support for sessions, see `HTTP Session
 <https://laravel.com/docs/{+laravel-docs-version+}/session>`__ in the
