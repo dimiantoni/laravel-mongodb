@@ -21,6 +21,7 @@ use function array_values;
 use function assert;
 use function count;
 use function current;
+use function explode;
 use function implode;
 use function in_array;
 use function is_array;
@@ -28,9 +29,13 @@ use function is_string;
 use function iterator_to_array;
 use function sort;
 use function sprintf;
+use function str_contains;
 use function str_ends_with;
 use function substr;
+use function trigger_error;
 use function usort;
+
+use const E_USER_DEPRECATED;
 
 /** @property Connection $connection */
 class Builder extends \Illuminate\Database\Schema\Builder
@@ -47,7 +52,7 @@ class Builder extends \Illuminate\Database\Schema\Builder
     }
 
     /**
-     * Check if columns exists in the collection schema.
+     * Check if columns exist in the collection schema.
      *
      * @param string   $table
      * @param string[] $columns
@@ -134,12 +139,18 @@ class Builder extends \Illuminate\Database\Schema\Builder
         $blueprint->drop();
     }
 
-    /** @inheritdoc */
+    /**
+     * @inheritdoc
+     *
+     * Drops the entire database instead of deleting each collection individually.
+     *
+     * In MongoDB, dropping the whole database is much faster than dropping collections
+     * one by one. The database will be automatically recreated when a new connection
+     * writes to it.
+     */
     public function dropAllTables()
     {
-        foreach ($this->getAllCollections() as $collection) {
-            $this->drop($collection);
-        }
+        $this->connection->getDatabase()->drop();
     }
 
     /** @param string|null $schema Database name */
@@ -148,7 +159,14 @@ class Builder extends \Illuminate\Database\Schema\Builder
         $db = $this->connection->getDatabase($schema);
         $collections = [];
 
-        foreach ($db->listCollectionNames() as $collectionName) {
+        foreach ($db->listCollections() as $collectionInfo) {
+            $collectionName = $collectionInfo->getName();
+
+            // Skip views, which don't support aggregate
+            if ($collectionInfo->getType() === 'view') {
+                continue;
+            }
+
             $stats = $db->selectCollection($collectionName)->aggregate([
                 ['$collStats' => ['storageStats' => ['scale' => 1]]],
                 ['$project' => ['storageStats.totalSize' => 1]],
@@ -165,9 +183,37 @@ class Builder extends \Illuminate\Database\Schema\Builder
             ];
         }
 
-        usort($collections, function ($a, $b) {
-            return $a['name'] <=> $b['name'];
-        });
+        usort($collections, fn ($a, $b) => $a['name'] <=> $b['name']);
+
+        return $collections;
+    }
+
+    /** @param  string|null $schema Database name */
+    public function getViews($schema = null)
+    {
+        $db = $this->connection->getDatabase($schema);
+        $collections = [];
+
+        foreach ($db->listCollections() as $collectionInfo) {
+            $collectionName = $collectionInfo->getName();
+
+            // Skip normal type collection
+            if ($collectionInfo->getType() !== 'view') {
+                continue;
+            }
+
+            $collections[] = [
+                'name' => $collectionName,
+                'schema' => $db->getDatabaseName(),
+                'schema_qualified_name' => $db->getDatabaseName() . '.' . $collectionName,
+                'size' => null,
+                'comment' => null,
+                'collation' => null,
+                'engine' => null,
+            ];
+        }
+
+        usort($collections, fn ($a, $b) => $a['name'] <=> $b['name']);
 
         return $collections;
     }
@@ -203,7 +249,12 @@ class Builder extends \Illuminate\Database\Schema\Builder
 
     public function getColumns($table)
     {
-        $stats = $this->connection->getDatabase()->selectCollection($table)->aggregate([
+        $db = null;
+        if (str_contains($table, '.')) {
+            [$db, $table] = explode('.', $table, 2);
+        }
+
+        $stats = $this->connection->getDatabase($db)->selectCollection($table)->aggregate([
             // Sample 1,000 documents to get a representative sample of the collection
             ['$sample' => ['size' => 1_000]],
             // Convert each document to an array of fields
@@ -340,10 +391,14 @@ class Builder extends \Illuminate\Database\Schema\Builder
     /**
      * Get all of the collections names for the database.
      *
+     * @deprecated
+     *
      * @return array
      */
     protected function getAllCollections()
     {
+        trigger_error(sprintf('Since mongodb/laravel-mongodb:5.4, Method "%s()" is deprecated without replacement.', __METHOD__), E_USER_DEPRECATED);
+
         $collections = [];
         foreach ($this->connection->getDatabase()->listCollections() as $collection) {
             $collections[] = $collection->getName();

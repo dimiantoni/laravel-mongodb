@@ -22,10 +22,11 @@ class SchemaTest extends TestCase
 {
     public function tearDown(): void
     {
-        $database = $this->getConnection('mongodb')->getMongoDB();
+        $database = $this->getConnection('mongodb')->getDatabase();
         assert($database instanceof Database);
         $database->dropCollection('newcollection');
         $database->dropCollection('newcollection_two');
+        $database->dropCollection('test_view');
 
         parent::tearDown();
     }
@@ -395,6 +396,7 @@ class SchemaTest extends TestCase
     {
         DB::connection('mongodb')->table('newcollection')->insert(['test' => 'value']);
         DB::connection('mongodb')->table('newcollection_two')->insert(['test' => 'value']);
+        DB::connection('mongodb')->getDatabase()->createCollection('test_view', ['viewOn' => 'newcollection']);
         $dbName = DB::connection('mongodb')->getDatabaseName();
 
         $tables = Schema::getTables();
@@ -406,6 +408,7 @@ class SchemaTest extends TestCase
             $this->assertArrayHasKey('size', $table);
             $this->assertArrayHasKey('schema', $table);
             $this->assertArrayHasKey('schema_qualified_name', $table);
+            $this->assertNotEquals('test_view', $table['name'], 'Standard views should not be included in the result of getTables.');
 
             if ($table['name'] === 'newcollection') {
                 $this->assertEquals(8192, $table['size']);
@@ -417,6 +420,40 @@ class SchemaTest extends TestCase
 
         if (! $found) {
             $this->fail('Collection "newcollection" not found');
+        }
+    }
+
+    public function testGetViews()
+    {
+        DB::connection('mongodb')->table('newcollection')->insert(['test' => 'value']);
+        DB::connection('mongodb')->table('newcollection_two')->insert(['test' => 'value']);
+        $dbName = DB::connection('mongodb')->getDatabaseName();
+
+        DB::connection('mongodb')->getDatabase()->createCollection('test_view', ['viewOn' => 'newcollection']);
+
+        $tables = Schema::getViews();
+
+        $this->assertIsArray($tables);
+        $this->assertGreaterThanOrEqual(1, count($tables));
+        $found = false;
+        foreach ($tables as $table) {
+            $this->assertArrayHasKey('name', $table);
+            $this->assertArrayHasKey('size', $table);
+            $this->assertArrayHasKey('schema', $table);
+            $this->assertArrayHasKey('schema_qualified_name', $table);
+
+            // Ensure "normal collections" are not in the views list
+            $this->assertNotEquals('newcollection', $table['name'], 'Normal collections should not be included in the result of getViews.');
+
+            if ($table['name'] === 'test_view') {
+                $this->assertEquals($dbName, $table['schema']);
+                $this->assertEquals($dbName . '.test_view', $table['schema_qualified_name']);
+                $found = true;
+            }
+        }
+
+        if (! $found) {
+            $this->fail('Collection "test_view" not found');
         }
     }
 
@@ -489,6 +526,11 @@ class SchemaTest extends TestCase
         // Non-existent collection
         $columns = Schema::getColumns('missing');
         $this->assertSame([], $columns);
+
+        // Qualified table name
+        $columns = Schema::getColumns(DB::getDatabaseName() . '.newcollection');
+        $this->assertIsArray($columns);
+        $this->assertCount(5, $columns);
     }
 
     /** @see AtlasSearchTest::testGetIndexes() */
