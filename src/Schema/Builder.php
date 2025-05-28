@@ -15,6 +15,7 @@ use MongoDB\Model\IndexInfo;
 use function array_column;
 use function array_fill_keys;
 use function array_filter;
+use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_merge;
@@ -26,6 +27,7 @@ use function explode;
 use function implode;
 use function in_array;
 use function is_array;
+use function is_bool;
 use function is_string;
 use function iterator_to_array;
 use function sort;
@@ -380,6 +382,9 @@ class Builder extends \Illuminate\Database\Schema\Builder
                 continue;
             }
 
+            $options = $collectionInfo->getOptions();
+            $collation = $options['collation'] ?? [];
+
             // Aggregation is not supported on views
             $stats = $collectionType !== 'view' ? $db->selectCollection($collectionName)->aggregate([
                 ['$collStats' => ['storageStats' => ['scale' => 1]]],
@@ -392,7 +397,7 @@ class Builder extends \Illuminate\Database\Schema\Builder
                 'schema_qualified_name' => $db->getDatabaseName() . '.' . $collectionName,
                 'size' => $stats[0]?->storageStats?->totalSize ?? null,
                 'comment' => null,
-                'collation' => null,
+                'collation' => $this->collationToString($collation),
                 'engine' => null,
             ];
         }
@@ -400,5 +405,31 @@ class Builder extends \Illuminate\Database\Schema\Builder
         usort($collections, fn ($a, $b) => $a['name'] <=> $b['name']);
 
         return $collections;
+    }
+
+    private function collationToString(array $collation): string
+    {
+        $map = [
+            'locale' => 'l',
+            'strength' => 's',
+            'caseLevel' => 'cl',
+            'caseFirst' => 'cf',
+            'numericOrdering' => 'no',
+            'alternate' => 'a',
+            'maxVariable' => 'mv',
+            'normalization' => 'n',
+            'backwards' => 'b',
+        ];
+
+        $parts = [];
+        foreach ($collation as $key => $value) {
+            if (array_key_exists($key, $map)) {
+                $shortKey = $map[$key];
+                $shortValue = is_bool($value) ? ($value ? '1' : '0') : $value;
+                $parts[] = $shortKey . '=' . $shortValue;
+            }
+        }
+
+        return implode(';', $parts);
     }
 }

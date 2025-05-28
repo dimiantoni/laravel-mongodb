@@ -20,12 +20,15 @@ use function sprintf;
 
 class SchemaTest extends TestCase
 {
+    private const COLL_WITH_COLLATION = 'collection_with_collation';
+
     public function tearDown(): void
     {
         $database = $this->getConnection('mongodb')->getDatabase();
         assert($database instanceof Database);
         $database->dropCollection('newcollection');
         $database->dropCollection('newcollection_two');
+        $database->dropCollection(self::COLL_WITH_COLLATION);
         $database->dropCollection('test_view');
 
         parent::tearDown();
@@ -394,9 +397,17 @@ class SchemaTest extends TestCase
 
     public function testGetTables()
     {
+        $db = DB::connection('mongodb')->getDatabase();
+        $db->createCollection(self::COLL_WITH_COLLATION, [
+            'collation' => [
+                'locale' => 'fr',
+                'strength' => 2,
+            ],
+        ]);
+
         DB::connection('mongodb')->table('newcollection')->insert(['test' => 'value']);
         DB::connection('mongodb')->table('newcollection_two')->insert(['test' => 'value']);
-        DB::connection('mongodb')->getDatabase()->createCollection('test_view', ['viewOn' => 'newcollection']);
+        $db->createCollection('test_view', ['viewOn' => 'newcollection']);
         $dbName = DB::connection('mongodb')->getDatabaseName();
 
         $tables = Schema::getTables();
@@ -407,6 +418,7 @@ class SchemaTest extends TestCase
             $this->assertArrayHasKey('name', $table);
             $this->assertArrayHasKey('size', $table);
             $this->assertArrayHasKey('schema', $table);
+            $this->assertArrayHasKey('collation', $table);
             $this->assertArrayHasKey('schema_qualified_name', $table);
             $this->assertNotEquals('test_view', $table['name'], 'Standard views should not be included in the result of getTables.');
 
@@ -415,6 +427,10 @@ class SchemaTest extends TestCase
                 $this->assertEquals($dbName, $table['schema']);
                 $this->assertEquals($dbName . '.newcollection', $table['schema_qualified_name']);
                 $found = true;
+            }
+
+            if ($table['name'] === self::COLL_WITH_COLLATION) {
+                $this->assertEquals('l=fr;cl=0;cf=off;s=2;no=0;a=non-ignorable;mv=punct;n=0;b=0', $table['collation']);
             }
         }
 
