@@ -6,6 +6,7 @@ namespace MongoDB\Laravel\Schema;
 
 use Closure;
 use MongoDB\Collection;
+use MongoDB\Database;
 use MongoDB\Driver\Exception\ServerException;
 use MongoDB\Laravel\Connection;
 use MongoDB\Model\CollectionInfo;
@@ -14,6 +15,7 @@ use MongoDB\Model\IndexInfo;
 use function array_column;
 use function array_fill_keys;
 use function array_filter;
+use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_merge;
@@ -25,6 +27,7 @@ use function explode;
 use function implode;
 use function in_array;
 use function is_array;
+use function is_bool;
 use function is_string;
 use function iterator_to_array;
 use function sort;
@@ -156,66 +159,13 @@ class Builder extends \Illuminate\Database\Schema\Builder
     /** @param string|null $schema Database name */
     public function getTables($schema = null)
     {
-        $db = $this->connection->getDatabase($schema);
-        $collections = [];
-
-        foreach ($db->listCollections() as $collectionInfo) {
-            $collectionName = $collectionInfo->getName();
-
-            // Skip views, which don't support aggregate
-            if ($collectionInfo->getType() === 'view') {
-                continue;
-            }
-
-            $stats = $db->selectCollection($collectionName)->aggregate([
-                ['$collStats' => ['storageStats' => ['scale' => 1]]],
-                ['$project' => ['storageStats.totalSize' => 1]],
-            ])->toArray();
-
-            $collections[] = [
-                'name' => $collectionName,
-                'schema' => $db->getDatabaseName(),
-                'schema_qualified_name' => $db->getDatabaseName() . '.' . $collectionName,
-                'size' => $stats[0]?->storageStats?->totalSize ?? null,
-                'comment' => null,
-                'collation' => null,
-                'engine' => null,
-            ];
-        }
-
-        usort($collections, fn ($a, $b) => $a['name'] <=> $b['name']);
-
-        return $collections;
+        return $this->getCollectionRows('collection', $schema);
     }
 
     /** @param  string|null $schema Database name */
     public function getViews($schema = null)
     {
-        $db = $this->connection->getDatabase($schema);
-        $collections = [];
-
-        foreach ($db->listCollections() as $collectionInfo) {
-            $collectionName = $collectionInfo->getName();
-
-            // Skip normal type collection
-            if ($collectionInfo->getType() !== 'view') {
-                continue;
-            }
-
-            $collections[] = [
-                'name' => $collectionName,
-                'schema' => $db->getDatabaseName(),
-                'schema_qualified_name' => $db->getDatabaseName() . '.' . $collectionName,
-                'size' => null,
-                'comment' => null,
-                'collation' => null,
-                'engine' => null,
-            ];
-        }
-
-        usort($collections, fn ($a, $b) => $a['name'] <=> $b['name']);
-
-        return $collections;
+        return $this->getCollectionRows('view', $schema);
     }
 
     /**
@@ -254,7 +204,7 @@ class Builder extends \Illuminate\Database\Schema\Builder
             [$db, $table] = explode('.', $table, 2);
         }
 
-        $stats = $this->connection->getDatabase($db)->selectCollection($table)->aggregate([
+        $stats = $this->connection->getDatabase($db)->getCollection($table)->aggregate([
             // Sample 1,000 documents to get a representative sample of the collection
             ['$sample' => ['size' => 1_000]],
             // Convert each document to an array of fields
@@ -389,7 +339,7 @@ class Builder extends \Illuminate\Database\Schema\Builder
     }
 
     /**
-     * Get all of the collections names for the database.
+     * Get all the collections names for the database.
      *
      * @deprecated
      *
@@ -417,5 +367,69 @@ class Builder extends \Illuminate\Database\Schema\Builder
             6047401, // MongoDB 7: $listSearchIndexes stage is only allowed on MongoDB Atlas
             31082,   // MongoDB 8: Using Atlas Search Database Commands and the $listSearchIndexes aggregation stage requires additional configuration.
         ], true);
+    }
+
+    /** @param string|null $schema Database name */
+    private function getCollectionRows(string $collectionType, $schema = null)
+    {
+        $db = $this->connection->getDatabase($schema);
+        $collections = [];
+
+        foreach ($db->listCollections() as $collectionInfo) {
+            $collectionName = $collectionInfo->getName();
+
+            if ($collectionInfo->getType() !== $collectionType) {
+                continue;
+            }
+
+            $options = $collectionInfo->getOptions();
+            $collation = $options['collation'] ?? [];
+
+            // Aggregation is not supported on views
+            $stats = $collectionType !== 'view' ? $db->selectCollection($collectionName)->aggregate([
+                ['$collStats' => ['storageStats' => ['scale' => 1]]],
+                ['$project' => ['storageStats.totalSize' => 1]],
+            ])->toArray() : null;
+
+            $collections[] = [
+                'name' => $collectionName,
+                'schema' => $db->getDatabaseName(),
+                'schema_qualified_name' => $db->getDatabaseName() . '.' . $collectionName,
+                'size' => $stats[0]?->storageStats?->totalSize ?? null,
+                'comment' => null,
+                'collation' => $this->collationToString($collation),
+                'engine' => null,
+            ];
+        }
+
+        usort($collections, fn ($a, $b) => $a['name'] <=> $b['name']);
+
+        return $collections;
+    }
+
+    private function collationToString(array $collation): string
+    {
+        $map = [
+            'locale' => 'l',
+            'strength' => 's',
+            'caseLevel' => 'cl',
+            'caseFirst' => 'cf',
+            'numericOrdering' => 'no',
+            'alternate' => 'a',
+            'maxVariable' => 'mv',
+            'normalization' => 'n',
+            'backwards' => 'b',
+        ];
+
+        $parts = [];
+        foreach ($collation as $key => $value) {
+            if (array_key_exists($key, $map)) {
+                $shortKey = $map[$key];
+                $shortValue = is_bool($value) ? ($value ? '1' : '0') : $value;
+                $parts[] = $shortKey . '=' . $shortValue;
+            }
+        }
+
+        return implode(';', $parts);
     }
 }
