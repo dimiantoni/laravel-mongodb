@@ -1052,6 +1052,55 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals(1, $user->age);
     }
 
+    public function testMultiplyAndDivide()
+    {
+        DB::table('users')->insert([
+            ['name' => 'John Doe', 'salary' => 88000, 'note' => 'senior'],
+            ['name' => 'Jane Doe', 'salary' => 64000, 'note' => 'junior'],
+            ['name' => 'Robert Roe', 'salary' => null],
+            ['name' => 'Mark Moe'],
+        ]);
+
+        $user = DB::table('users')->where('name', 'John Doe')->first();
+        $this->assertEquals(88000, $user->salary);
+
+        DB::table('users')->where('name', 'John Doe')->multiply('salary', 1);
+        $user = DB::table('users')->where('name', 'John Doe')->first();
+        $this->assertEquals(88000, $user->salary);
+
+        DB::table('users')->where('name', 'John Doe')->divide('salary', 1);
+        $user = DB::table('users')->where('name', 'John Doe')->first();
+        $this->assertEquals(88000, $user->salary);
+
+        DB::table('users')->where('name', 'John Doe')->multiply('salary', 2);
+        $user = DB::table('users')->where('name', 'John Doe')->first();
+        $this->assertEquals(176000, $user->salary);
+
+        DB::table('users')->where('name', 'John Doe')->divide('salary', 2);
+        $user = DB::table('users')->where('name', 'John Doe')->first();
+        $this->assertEquals(88000, $user->salary);
+
+        DB::table('users')->where('name', 'Jane Doe')->multiply('salary', 10, ['note' => 'senior']);
+        $user = DB::table('users')->where('name', 'Jane Doe')->first();
+        $this->assertEquals(640000, $user->salary);
+        $this->assertEquals('senior', $user->note);
+
+        DB::table('users')->where('name', 'John Doe')->divide('salary', 2, ['note' => 'junior']);
+        $user = DB::table('users')->where('name', 'John Doe')->first();
+        $this->assertEquals(44000, $user->salary);
+        $this->assertEquals('junior', $user->note);
+
+        DB::table('users')->multiply('salary', 1);
+        $user = DB::table('users')->where('name', 'John Doe')->first();
+        $this->assertEquals(44000, $user->salary);
+        $user = DB::table('users')->where('name', 'Jane Doe')->first();
+        $this->assertEquals(640000, $user->salary);
+        $user = DB::table('users')->where('name', 'Robert Roe')->first();
+        $this->assertNull($user->salary);
+        $user = DB::table('users')->where('name', 'Mark Moe')->first();
+        $this->assertFalse(isset($user->salary));
+    }
+
     public function testProjections()
     {
         DB::table('items')->insert([
