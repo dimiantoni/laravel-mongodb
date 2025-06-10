@@ -9,6 +9,13 @@ use Illuminate\Support\Facades\DB;
 use MongoDB\Driver\ReadPreference;
 use MongoDB\Laravel\Tests\TestCase;
 
+use function json_encode;
+use function ob_get_flush;
+use function ob_start;
+
+use const JSON_PRETTY_PRINT;
+use const PHP_EOL;
+
 class ReadOperationsTest extends TestCase
 {
     protected function setUp(): void
@@ -182,5 +189,38 @@ class ReadOperationsTest extends TestCase
 
         $this->assertNotNull($movies);
         $this->assertCount(2, $movies);
+    }
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    public function testQueryLog(): void
+    {
+        $output = '';
+        ob_start(function (string $buffer) use (&$output) {
+            $output .= $buffer;
+        });
+        // start-query-log
+        DB::connection('mongodb')->enableQueryLog();
+
+        Movie::where('title', 'Carrie')->get();
+        Movie::where('year', '<', 2005)->get();
+        Movie::where('imdb.rating', '>', 8.5)->get();
+
+        $logs = DB::connection('mongodb')->getQueryLog();
+        foreach ($logs as $log) {
+            echo json_encode($log, JSON_PRETTY_PRINT) . PHP_EOL;
+        }
+
+        // end-query-log
+        $output = ob_get_flush();
+        $this->assertNotNull($logs);
+        $this->assertNotEmpty($output);
+
+        $this->assertStringContainsString('"query": "{ \"find\" : \"movies\", \"filter\" : { \"title\" : \"Carrie\" } }"', $output);
+        $this->assertStringContainsString('"query": "{ \"find\" : \"movies\", \"filter\" : { \"imdb.rating\" : { \"$gt\" : { \"$numberDouble\" : \"8.5\" } } } }"', $output);
+        $this->assertStringContainsString('"query": "{ \"find\" : \"movies\", \"filter\" : { \"imdb.rating\" : { \"$gt\" : { \"$numberDouble\" : \"8.5\" } } } }"', $output);
+        $this->assertMatchesRegularExpression('/"time": \d+/', $output);
     }
 }
