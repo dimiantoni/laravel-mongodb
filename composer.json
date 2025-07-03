@@ -16,6 +16,7 @@
     },
     "authors": [
         { "name": "Andreas Braun", "email": "andreas.braun@mongodb.com", "role": "Leader" },
+        { "name": "Pauline Vos", "email": "pauline.vos@mongodb.com", "role": "Maintainer" },
         { "name": "Jérôme Tamarelle", "email": "jerome.tamarelle@mongodb.com", "role": "Maintainer" },
         { "name": "Jeremy Mikola", "email": "jmikola@gmail.com", "role": "Maintainer" },
         { "name": "Jens Segers", "homepage": "https://jenssegers.com", "role": "Creator" }

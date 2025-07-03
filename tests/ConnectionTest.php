@@ -190,6 +190,12 @@ class ConnectionTest extends TestCase
             'expectedDatabaseName' => 'tests',
             'config' => ['dsn' => 'mongodb://some-host:12345/tests'],
         ];
+
+        yield 'Database is extracted from DSN with CA path in options' => [
+            'expectedUri' => 'mongodb://some-host:12345/tests?tls=true&tlsCAFile=/path/to/ca.pem&retryWrites=false',
+            'expectedDatabaseName' => 'tests',
+            'config' => ['dsn' => 'mongodb://some-host:12345/tests?tls=true&tlsCAFile=/path/to/ca.pem&retryWrites=false'],
+        ];
     }
 
     #[DataProvider('dataConnectionConfig')]
@@ -289,6 +295,8 @@ class ConnectionTest extends TestCase
         DB::table('items')->get();
         $this->assertCount(1, $logs = DB::getQueryLog());
         $this->assertJsonStringEqualsJsonString('{"find":"items","filter":{}}', $logs[0]['query']);
+        $this->assertLessThan(10, $logs[0]['time'], 'Query time is in milliseconds');
+        $this->assertGreaterThan(0.01, $logs[0]['time'], 'Query time is in milliseconds');
 
         DB::table('items')->insert(['id' => $id = new ObjectId(), 'name' => 'test']);
         $this->assertCount(2, $logs = DB::getQueryLog());

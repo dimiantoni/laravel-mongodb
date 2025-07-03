@@ -890,6 +890,47 @@ class Builder extends BaseBuilder
         return $this->incrementEach($decrement, $extra, $options);
     }
 
+    /**
+     * Multiply a column's value by a given amount.
+     *
+     * @param  string    $column
+     * @param  float|int $amount
+     *
+     * @return int
+     */
+    public function multiply($column, $amount, array $extra = [], array $options = [])
+    {
+        $query = ['$mul' => [(string) $column => $amount]];
+
+        if (! empty($extra)) {
+            $query['$set'] = $extra;
+        }
+
+        // Protect
+        $this->where(function ($query) use ($column) {
+            $query->where($column, 'exists', true);
+
+            $query->whereNotNull($column);
+        });
+
+        $options = $this->inheritConnectionOptions($options);
+
+        return $this->performUpdate($query, $options);
+    }
+
+    /**
+     * Divide a column's value by a given amount.
+     *
+     * @param  string    $column
+     * @param  float|int $amount
+     *
+     * @return int
+     */
+    public function divide($column, $amount, array $extra = [], array $options = [])
+    {
+        return $this->multiply($column, 1 / $amount, $extra, $options);
+    }
+
     /** @inheritdoc */
     public function pluck($column, $key = null)
     {
@@ -964,7 +1005,13 @@ class Builder extends BaseBuilder
         return $this->pluck($column, $key);
     }
 
-    /** @inheritdoc */
+    /**
+     * @param (Closure():T)|Expression|null $value
+     *
+     * @return ($value is Closure ? T : ($value is null ? Collection : Expression))
+     *
+     * @template T
+     */
     public function raw($value = null)
     {
         // Execute the closure on the mongodb collection
