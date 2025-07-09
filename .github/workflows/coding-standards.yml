@@ -56,6 +56,11 @@ jobs:
 
       - name: "Install dependencies with Composer"
         uses: "ramsey/composer-install@3.1.1"
+        with:
+          composer-options: "--no-suggest"
+
+      - name: "Validate PSR class names"
+        run: "composer dump-autoload --optimize --strict-psr"
 
       # The -q option is required until phpcs v4 is released
       - name: "Run PHP_CodeSniffer"
