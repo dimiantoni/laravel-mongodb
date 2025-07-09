@@ -64,4 +64,6 @@ jobs:
 
       # The -q option is required until phpcs v4 is released
       - name: "Run PHP_CodeSniffer"
-        run: "vendor/bin/phpcs -q --no-colors --report=checkstyle | cs2pr"
+        run: |
+          mkdir .cache
+          vendor/bin/phpcs -q --no-colors --report=checkstyle | cs2pr
