@@ -49,7 +49,14 @@ use const DATE_ATOM;
 
 class ModelTest extends TestCase
 {
-    public function tearDown(): void
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Carbon::setTestNow();
+    }
+
+    protected function tearDown(): void
     {
         Carbon::setTestNow();
         DB::connection('mongodb')->getCollection('users')->drop();
@@ -83,14 +90,21 @@ class ModelTest extends TestCase
         $this->assertEquals('users.name', $sqlUser->qualifyColumn('name'));
     }
 
-    public function testInsert(): void
+    private function makeUser(): User
     {
-        $user        = new User();
+        $user = new User();
         $user->name  = 'John Doe';
         $user->title = 'admin';
         $user->age   = 35;
 
         $user->save();
+
+        return $user;
+    }
+
+    public function testInsert(): void
+    {
+        $user = $this->makeUser();
 
         $this->assertTrue($user->exists);
         $this->assertEquals(1, User::count());
@@ -130,11 +144,7 @@ class ModelTest extends TestCase
 
     public function testUpdate(): void
     {
-        $user        = new User();
-        $user->name  = 'John Doe';
-        $user->title = 'admin';
-        $user->age   = 35;
-        $user->save();
+        $user = $this->makeUser();
 
         $raw = $user->getAttributes();
         $this->assertInstanceOf(ObjectID::class, $raw['id']);
@@ -264,11 +274,7 @@ class ModelTest extends TestCase
 
     public function testDelete(): void
     {
-        $user        = new User();
-        $user->name  = 'John Doe';
-        $user->title = 'admin';
-        $user->age   = 35;
-        $user->save();
+        $user = $this->makeUser();
 
         $this->assertTrue($user->exists);
         $this->assertEquals(1, User::count());
@@ -280,11 +286,7 @@ class ModelTest extends TestCase
 
     public function testAll(): void
     {
-        $user        = new User();
-        $user->name  = 'John Doe';
-        $user->title = 'admin';
-        $user->age   = 35;
-        $user->save();
+        $user = $this->makeUser();
 
         $user        = new User();
         $user->name  = 'Jane Doe';
@@ -301,11 +303,7 @@ class ModelTest extends TestCase
 
     public function testFind(): void
     {
-        $user        = new User();
-        $user->name  = 'John Doe';
-        $user->title = 'admin';
-        $user->age   = 35;
-        $user->save();
+        $user = $this->makeUser();
 
         $check = User::find($user->id);
         $this->assertInstanceOf(User::class, $check);
@@ -384,11 +382,7 @@ class ModelTest extends TestCase
 
     public function testDestroy(): void
     {
-        $user        = new User();
-        $user->name  = 'John Doe';
-        $user->title = 'admin';
-        $user->age   = 35;
-        $user->save();
+        $user = $this->makeUser();
 
         User::destroy((string) $user->id);
 
@@ -397,11 +391,7 @@ class ModelTest extends TestCase
 
     public function testTouch(): void
     {
-        $user        = new User();
-        $user->name  = 'John Doe';
-        $user->title = 'admin';
-        $user->age   = 35;
-        $user->save();
+        $user = $this->makeUser();
 
         $old = $user->updated_at;
         sleep(1);
@@ -1089,7 +1079,7 @@ class ModelTest extends TestCase
         $this->assertEquals(['fork', 'spork', 'spoon'], $names);
     }
 
-    public function testTruncateModel()
+    public function testTruncateModel(): void
     {
         User::create(['name' => 'John Doe']);
 
@@ -1098,7 +1088,7 @@ class ModelTest extends TestCase
         $this->assertEquals(0, User::count());
     }
 
-    public function testGuardedModel()
+    public function testGuardedModel(): void
     {
         $model = new Guarded();
 
