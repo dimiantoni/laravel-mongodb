@@ -9,7 +9,6 @@
     <!-- Ignore warnings (n), show progress of the run (p), and show sniff names (s) -->
     <arg value="nps"/>
 
-    <file>docs</file>
     <file>src</file>
     <file>tests</file>
 
@@ -38,15 +37,12 @@
 
         <exclude name="Generic.Formatting.MultipleStatementAlignment" />
 
-        <!-- Less constraints for docs files -->
         <exclude name="Squiz.Classes.ClassFileName.NoMatch">
-            <exclude-pattern>docs/**/*.php</exclude-pattern>
+            <exclude-pattern>/tests</exclude-pattern>
         </exclude>
+
         <exclude name="SlevomatCodingStandard.TypeHints.DeclareStrictTypes.DeclareStrictTypesMissing">
-            <exclude-pattern>docs/**/*.php</exclude-pattern>
-        </exclude>
-        <exclude name="Squiz.Arrays.ArrayDeclaration.MultiLineNotAllowed">
-            <exclude-pattern>docs/**/*.php</exclude-pattern>
+            <exclude-pattern>/tests</exclude-pattern>
         </exclude>
     </rule>
 
